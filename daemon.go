@@ -118,22 +118,22 @@ func cmd_daemon(args []string) error {
 				log.Printf("START: sess=%s cwd=%q command=%q", sess, cwd, command)
 				c.Write([]byte(strconv.Itoa(id)))
 			case "end":
-				// Expected: end session id exit tstamp_start tstamp_end
+				// Expected: end session exit tstamp_start tstamp_end
 				c.Write([]byte("ok"))
 				f := strings.Fields(rest)
-				if len(f) != 5 {
+				if len(f) != 4 {
 					log.Printf("Error: got %q\n", data)
 				}
 				sess := f[0]
-				id := f[1]
-				exit := f[2]
-				timeStart := f[3]
-				timeEnd := f[4]
-				err = daemonEndCommand(db, sess, id, exit, timeStart, timeEnd)
+				exit := f[1]
+				timeStart := f[2]
+				timeEnd := f[3]
+				err = daemonEndCommand(db, sess, exit, timeStart, timeEnd)
 				if err != nil {
 					log.Printf("Error: %v\n", err)
 					return
 				}
+				log.Printf("END: sess=%s exit=%s start=%s end=%s", sess, exit, timeStart, timeEnd)
 			default:
 				log.Printf("Error: got %q\n", data)
 			}
@@ -168,7 +168,7 @@ func daemonStartCommand(db *sql.DB, sess string, cwd string, command string) (in
 	return id, nil
 }
 
-func daemonEndCommand(db *sql.DB, sess string, id string, exit string, timeStart string, timeEnd string) error {
+func daemonEndCommand(db *sql.DB, sess string, exit string, timeStart string, timeEnd string) error {
 	t1, err := strconv.ParseFloat(timeStart, 64)
 	if err != nil {
 		return err
@@ -177,14 +177,16 @@ func daemonEndCommand(db *sql.DB, sess string, id string, exit string, timeStart
 	if err != nil {
 		return err
 	}
-	duration := uint((t2 - t1) * 1_000_000_000)
+	duration := uint((t2 - t1) * 1_000_000)
 	_, err = db.Exec(`
 		UPDATE eternal_command
 		SET exit=?, duration=?
-		WHERE id=? AND session_id=(SELECT id FROM eternal_session WHERE uuid=?)
-	`, exit, duration, id, sess)
+		WHERE exit IS NULL AND id=(SELECT MAX(id) FROM eternal_command WHERE session_id=(SELECT id FROM eternal_session WHERE uuid=?))
+	`, exit, duration, sess)
 	if err != nil {
 		return fmt.Errorf("UPDATING command: %w", err)
 	}
 	return nil
 }
+
+// select * FROM eternal_command where session_id=4 and exit is null and id=(select max(id) FROM eternal_command where session_id=4);

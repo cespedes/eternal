@@ -7,16 +7,16 @@
 ETERNAL_SESSION=$( eternal init )
 
 __eternal_preexec() {
-	__eternal_history_id=$( eternal start "$ETERNAL_SESSION" "$1" )
+	eternal start "$ETERNAL_SESSION" "$1"
 	__eternal_start_time=${EPOCHREALTIME-}
 }
 
 __eternal_precmd() {
 	local EXIT=$? __eternal_end_time=${EPOCHREALTIME-}
 
-	[[ ! $__eternal_history_id ]] && return
+	[[ ! $__eternal_start_time ]] && return
 
-	eternal end "$ETERNAL_SESSION" "$__eternal_history_id" "${EXIT}" "${__eternal_start_time}" "${__eternal_end_time}"
+	eternal end "$ETERNAL_SESSION" "${EXIT}" "${__eternal_start_time}" "${__eternal_end_time}"
 	unset __eternal_history_id __eternal_start_time
 }
 
