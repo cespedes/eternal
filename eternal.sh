@@ -5,9 +5,10 @@
 #
 
 ETERNAL_SESSION=$( eternal init )
+export ETERNAL_SESSION
 
 __eternal_preexec() {
-	eternal start "$ETERNAL_SESSION" "$1"
+	eternal start "$1"
 	__eternal_start_time=${EPOCHREALTIME-}
 }
 
@@ -16,7 +17,7 @@ __eternal_precmd() {
 
 	[[ ! $__eternal_start_time ]] && return
 
-	eternal end "$ETERNAL_SESSION" "${EXIT}" "${__eternal_start_time}" "${__eternal_end_time}"
+	eternal end "${EXIT}" "${__eternal_start_time}" "${__eternal_end_time}"
 	unset __eternal_history_id __eternal_start_time
 }
 

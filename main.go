@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -24,33 +25,39 @@ func run(args []string) error {
 	}
 	switch os.Args[1] {
 	case "daemon":
-		return cmd_daemon(args)
+		return cmdDaemon(args)
 	case "init":
-		return cmd_init(args)
+		return cmdInit(args)
 	case "start":
-		return cmd_start(args)
+		return cmdStart(args)
 	case "end":
-		return cmd_end(args)
+		return cmdEnd(args)
+	case "history":
+		return cmdHistory(args)
 	default:
 		return usage()
 	}
 }
 
-func cmd_start(args []string) error {
-	if len(args) != 4 {
+func cmdStart(args []string) error {
+	if len(args) != 3 {
 		return usage()
 	}
 	c, err := connect()
 	if err != nil {
 		return err
 	}
+	defer c.Close()
 
-	session := args[2]
+	session, err := getSession()
+	if err != nil {
+		return err
+	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		cwd = "(error)"
 	}
-	command := args[3]
+	command := args[2]
 	// log.Printf("eternal start: Sending to daemon: start %s %s %s", session, cmd, command)
 	// We use '\000' between cwd and command so that any of them can contain spaces
 	_, err = c.Write([]byte(fmt.Sprintf("start %s %s\000%s", session, cwd, command)))
@@ -61,19 +68,23 @@ func cmd_start(args []string) error {
 	return nil
 }
 
-func cmd_end(args []string) error {
-	if len(args) != 6 {
+func cmdEnd(args []string) error {
+	if len(args) != 5 {
 		return usage()
 	}
 	c, err := connect()
 	if err != nil {
 		return err
 	}
+	defer c.Close()
 
-	session := args[2]
-	status := args[3]
-	start := args[4]
-	end := args[5]
+	session, err := getSession()
+	if err != nil {
+		return err
+	}
+	status := args[2]
+	start := args[3]
+	end := args[4]
 
 	// log.Printf("eternal end: Sending to daemon: end %s %s %s %s", session, status, start, end)
 	_, err = c.Write([]byte(fmt.Sprintf("end %s %s %s %s", session, status, start, end)))
@@ -82,4 +93,48 @@ func cmd_end(args []string) error {
 	}
 
 	return nil
+}
+
+func cmdHistory(args []string) error {
+	if len(args) != 2 {
+		return usage()
+	}
+	c, err := connect()
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	session, err := getSession()
+	if err != nil {
+		return err
+	}
+
+	// log.Printf("eternal history: Sending to daemon: history")
+	_, err = c.Write([]byte(fmt.Sprintf("history %s", session)))
+	if err != nil {
+		return err
+	}
+	for {
+		buf := make([]byte, 1024)
+		nr, err := c.Read(buf)
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		data := buf[0:nr]
+		fmt.Print(string(data))
+	}
+
+	return nil
+}
+
+func getSession() (string, error) {
+	session := os.Getenv("ETERNAL_SESSION")
+	if session == "" {
+		return "", errors.New("no ETERNAL_SESSION in environment")
+	}
+	return session, nil
 }

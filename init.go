@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func cmd_init(args []string) error {
+func cmdInit(args []string) error {
 	log.Println("eternal starting")
 	c, err := connect()
 	if err != nil {
