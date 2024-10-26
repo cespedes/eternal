@@ -17,3 +17,17 @@ listening in a UNIX socket in your local machine.
 
 That daemon can store your history in a local SQLite database, or forward it
 to another daemon, in a remote machine.
+
+# SQLite
+
+When using SQLite, the database is created with:
+
+    CREATE TABLE eternal_session(id INTEGER primary key, created timestamp not null default (datetime()), uuid text unique not null, hostname text not null, username text not null, tty text not null, pid int not null);
+
+    CREATE TABLE eternal_command (id INTEGER primary key, session_id integer not null references eternal_session(id), cwd text not null, start timestamp not null default (datetime()), exit int, duration int, command text not null);
+
+# PostgreSQL
+
+    create table eternal_session(id serial primary key, created timestamp not null default now(), uuid text not null default gen_random_uuid(), hostname text not null, username text not null, tty text not null, pid int not null);
+    create table eternal_command (id serial primary key, session_id integer not null references eternal_session(id), cwd text not null, start timestamp not null default date_trunc('second',now()), exit int, duration int, command text not null);
+

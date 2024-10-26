@@ -4,7 +4,7 @@ import (
 	"net"
 	"os"
 	"os/user"
-	"path"
+	"path/filepath"
 )
 
 //
@@ -19,7 +19,7 @@ func socketName() string {
 	filename := "eternal"
 	dir := os.Getenv("XDG_RUNTIME_DIR")
 	if dir != "" {
-		return path.Join(dir, filename)
+		return filepath.Join(dir, filename)
 	}
 
 	username := os.Getenv("USER")
@@ -36,7 +36,7 @@ func socketName() string {
 	if dir == "" {
 		dir = "/tmp"
 	}
-	return path.Join(dir, filename)
+	return filepath.Join(dir, filename)
 }
 
 func connect() (net.Conn, error) {

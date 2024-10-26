@@ -5,7 +5,6 @@
 #
 
 ETERNAL_SESSION=$( eternal init )
-export ETERNAL_SESSION
 
 __eternal_preexec() {
 	__eternal_history_id=$( eternal start "$ETERNAL_SESSION" "$1" )
