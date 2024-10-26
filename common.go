@@ -3,20 +3,42 @@ package main
 import (
 	"net"
 	"os"
+	"os/user"
 	"path"
 )
 
-func connect() (net.Conn, error) {
-	return net.Dial("unix", socketName())
-}
+//
+// Default socket location:
+//
+// - $XDG_RUNTIME_DIR/eternal
+// - $TMPDIR/$USER-eternal
+// - /tmp/$USER-eternal
+//
 
 func socketName() string {
-	dir := os.Getenv("XDG_RUNTIME_DIR")
 	filename := "eternal"
-	if dir == "" {
-		filename = "/tmp/" + os.Getenv("LOGNAME") + "-eternal"
-	} else {
-		filename = path.Join(dir, filename)
+	dir := os.Getenv("XDG_RUNTIME_DIR")
+	if dir != "" {
+		return path.Join(dir, filename)
 	}
-	return filename
+
+	username := os.Getenv("USER")
+	user, err := user.Current()
+	if err == nil {
+		username = user.Username
+	}
+	username = user.Username
+	if username != "" {
+		filename = username + "-" + filename
+	}
+
+	dir = os.Getenv("TMPDIR")
+	if dir == "" {
+		dir = "/tmp"
+	}
+	return path.Join(dir, filename)
+}
+
+func connect() (net.Conn, error) {
+	return net.Dial("unix", socketName())
 }
