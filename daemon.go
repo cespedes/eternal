@@ -46,8 +46,7 @@ type Entry struct {
 type Command struct {
 	Name     string
 	Args     string
-	Response chan string
-	History  chan []Entry
+	Response chan any // each command name has different response types
 }
 
 func (c Command) String() string {
@@ -114,23 +113,17 @@ func cmdDaemon(args []string) error {
 
 			var cmd Command
 			cmd.Name, cmd.Args, _ = strings.Cut(data, " ")
-			if cmd.Name == "init" {
-				cmd.Response = make(chan string, 1)
-			}
-			if cmd.Name == "history" {
-				cmd.History = make(chan []Entry, 1)
-			}
+			cmd.Response = make(chan any, 1)
 			cc <- cmd
 			if cmd.Name == "init" {
-				response := <-cmd.Response
-				c.Write([]byte(response))
+				uuid := <-cmd.Response
+				c.Write([]byte(uuid.(string)))
 			}
 			if cmd.Name == "history" {
-				history := <-cmd.History
-				for _, e := range history {
+				history := <-cmd.Response
+				for _, e := range history.([]Entry) {
 					c.Write([]byte(fmt.Sprintf("%s %s\n", e.Timestamp, e.Cmd)))
 				}
-				_ = history
 			}
 		}(c)
 	}
@@ -203,7 +196,7 @@ func daemonBackendSqlite(db *sql.DB, cc chan Command) {
 				return
 			}
 			log.Println("HISTORY")
-			cmd.History <- history
+			cmd.Response <- history
 		default:
 			log.Printf("Error: got %q\n", cmd)
 		}
