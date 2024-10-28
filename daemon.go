@@ -85,8 +85,8 @@ func cmdDaemon(args []string) error {
 	defer db.Close()
 
 	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS eternal_session(id INTEGER primary key, created timestamp not null default (datetime()), uuid text unique not null, hostname text not null, username text not null, tty text not null, pid int not null);
-		CREATE TABLE IF NOT EXISTS eternal_command (id INTEGER primary key, session_id integer not null references eternal_session(id), cwd text not null, start timestamp not null default (datetime()), exit int, duration int, command text not null);
+		CREATE TABLE IF NOT EXISTS eternal_session(id INTEGER primary key, created timestamp not null default (datetime('now','localtime')), uuid text unique not null, hostname text not null, username text not null, tty text not null, pid int not null);
+		CREATE TABLE IF NOT EXISTS eternal_command (id INTEGER primary key, session_id integer not null references eternal_session(id), cwd text not null, start timestamp not null default (datetime('now','localtime')), exit int, duration int, command text not null);
 	`)
 	if err != nil {
 		return fmt.Errorf("trying to create SQL tables: %w", err)
