@@ -31,11 +31,19 @@ import (
 
 const chanSize = 50
 
+type Session struct {
+	OS       string // GOOS/GOARCH (eg, "linux/amd64", "darwin/amd64"...)
+	Shell    string
+	Parent   string
+	Origin   string // remote IP if this is a SSH connection
+	Hostname string
+	Username string
+	TTY      string
+	PID      int
+}
+
 type Entry struct {
-	Hostname   string
-	Username   string
-	TTY        string
-	PID        int
+	Session
 	WorkingDir string
 	Timestamp  string
 	Cmd        string
@@ -60,11 +68,11 @@ func cmdDaemon(args []string) error {
 	}
 	log.Println("Starting daemon")
 	os.Remove(socketName())
-	l, err := net.Listen("unix", socketName())
+	ln, err := net.Listen("unixpacket", socketName())
 	if err != nil {
 		return err
 	}
-	defer l.Close()
+	defer ln.Close()
 
 	var dbdir, dbfile string
 	switch runtime.GOOS {
@@ -96,11 +104,10 @@ func cmdDaemon(args []string) error {
 	go daemonBackendSqlite(db, cc)
 
 	for {
-		c, err := l.Accept()
+		c, err := ln.Accept()
 		if err != nil {
 			return err
 		}
-		// log.Println("Accepted new connection")
 		go func(c net.Conn) {
 			defer c.Close()
 			buf := make([]byte, 1024)

@@ -6,9 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/mitchellh/go-ps"
 )
 
 func cmdInit(args []string) error {
@@ -48,8 +51,10 @@ func cmdInit(args []string) error {
 		}
 	}
 	defer c.Close()
+
 	// We need a few things: hostname, username, tty, parent PID:
-	hostname, err := os.Hostname()
+	var session Session
+	session.Hostname, err = os.Hostname()
 	if err != nil {
 		return err
 	}
@@ -57,10 +62,10 @@ func cmdInit(args []string) error {
 	if err != nil {
 		return err
 	}
-	username := user.Username
+	session.Username = user.Username
 
 	// TTY: we first try the Linux way:
-	tty, err := os.Readlink("/proc/self/fd/0")
+	session.TTY, err = os.Readlink("/proc/self/fd/0")
 	if err != nil {
 		// If unavailable, we execute "tty":
 		cmd := exec.Command("tty")
@@ -69,13 +74,27 @@ func cmdInit(args []string) error {
 		if err != nil {
 			return fmt.Errorf(`cannot exec "tty": %w`, err)
 		}
-		tty = strings.TrimSpace(string(out))
+		session.TTY = strings.TrimSpace(string(out))
 	}
 
-	ppid := os.Getppid()
+	session.PID = os.Getppid()
+
+	proc, err := ps.FindProcess(session.PID)
+	if err != nil {
+		return err
+	}
+	session.Shell = proc.Executable()
+	proc, err = ps.FindProcess(proc.PPid())
+	session.Parent = proc.Executable()
+
+	session.OS = runtime.GOOS + "/" + runtime.GOARCH
+	session.Origin, _, _ = strings.Cut(os.Getenv("SSH_CLIENT"), " ")
+
+	log.Printf("eternal init: session=%+v", session)
 
 	// log.Printf("Sending to daemon: init %s %s %s %d", hostname, username, tty, ppid)
-	_, err = c.Write([]byte(fmt.Sprintf("init %s %s %s %d", hostname, username, tty, ppid)))
+	_, err = c.Write([]byte(fmt.Sprintf("init %s %s %s %d",
+		session.Hostname, session.Username, session.TTY, session.PID)))
 	if err != nil {
 		return err
 	}
