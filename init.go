@@ -1,12 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"os/user"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -52,9 +54,10 @@ func cmdInit(args []string) error {
 	}
 	defer c.Close()
 
+	m := map[string]string{"action": "init"}
+
 	// We need a few things: hostname, username, tty, parent PID:
-	var session Session
-	session.Hostname, err = os.Hostname()
+	m["hostname"], err = os.Hostname()
 	if err != nil {
 		return err
 	}
@@ -62,10 +65,10 @@ func cmdInit(args []string) error {
 	if err != nil {
 		return err
 	}
-	session.Username = user.Username
+	m["username"] = user.Username
 
 	// TTY: we first try the Linux way:
-	session.TTY, err = os.Readlink("/proc/self/fd/0")
+	m["tty"], err = os.Readlink("/proc/self/fd/0")
 	if err != nil {
 		// If unavailable, we execute "tty":
 		cmd := exec.Command("tty")
@@ -74,27 +77,29 @@ func cmdInit(args []string) error {
 		if err != nil {
 			return fmt.Errorf(`cannot exec "tty": %w`, err)
 		}
-		session.TTY = strings.TrimSpace(string(out))
+		m["tty"] = strings.TrimSpace(string(out))
 	}
 
-	session.PID = os.Getppid()
+	pid := os.Getppid()
+	m["pid"] = strconv.Itoa(pid)
 
-	proc, err := ps.FindProcess(session.PID)
+	proc, err := ps.FindProcess(pid)
 	if err != nil {
 		return err
 	}
-	session.Shell = proc.Executable()
+	m["shell"] = proc.Executable()
 	proc, err = ps.FindProcess(proc.PPid())
-	session.Parent = proc.Executable()
+	m["parent"] = proc.Executable()
 
-	session.OS = runtime.GOOS + "/" + runtime.GOARCH
-	session.Origin, _, _ = strings.Cut(os.Getenv("SSH_CLIENT"), " ")
+	m["os"] = runtime.GOOS + "/" + runtime.GOARCH
+	m["origin"], _, _ = strings.Cut(os.Getenv("SSH_CLIENT"), " ")
 
-	log.Printf("eternal init: session=%+v", session)
+	b, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
 
-	// log.Printf("Sending to daemon: init %s %s %s %d", hostname, username, tty, ppid)
-	_, err = c.Write([]byte(fmt.Sprintf("init %s %s %s %d",
-		session.Hostname, session.Username, session.TTY, session.PID)))
+	_, err = c.Write(b)
 	if err != nil {
 		return err
 	}
@@ -105,7 +110,14 @@ func cmdInit(args []string) error {
 		return err
 	}
 	data := buf[0:nr]
-	// log.Printf("Got: %s\n", data)
-	fmt.Println(string(data))
+
+	var session struct {
+		Session string `json:"session"`
+	}
+	err = json.Unmarshal(data, &session)
+	if err != nil {
+		return err
+	}
+	fmt.Println(session.Session)
 	return nil
 }

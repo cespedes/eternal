@@ -1,10 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strconv"
+	"time"
 )
 
 func usage() error {
@@ -49,18 +52,24 @@ func cmdStart(args []string) error {
 	}
 	defer c.Close()
 
-	session, err := getSession()
+	m := map[string]string{"action": "start"}
+
+	m["session"], err = getSession()
 	if err != nil {
 		return err
 	}
-	cwd, err := os.Getwd()
+	m["working_dir"], err = os.Getwd()
 	if err != nil {
-		cwd = "(error)"
+		m["working_dir"] = "(error)"
 	}
-	command := args[2]
-	// log.Printf("eternal start: Sending to daemon: start %s %s %s", session, cmd, command)
-	// We use '\000' between cwd and command so that any of them can contain spaces
-	_, err = c.Write([]byte(fmt.Sprintf("start %s %s\000%s", session, cwd, command)))
+	m["command"] = args[2]
+	// log.Printf("eternal start: Sending to daemon: %v", m)
+	b, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Write(b)
 	if err != nil {
 		return err
 	}
@@ -78,16 +87,22 @@ func cmdEnd(args []string) error {
 	}
 	defer c.Close()
 
-	session, err := getSession()
+	m := map[string]string{"action": "end"}
+
+	m["session"], err = getSession()
 	if err != nil {
 		return err
 	}
-	status := args[2]
-	start := args[3]
-	end := args[4]
+	m["status"] = args[2]
+	m["start"] = args[3]
+	m["end"] = args[4]
+	// log.Printf("eternal end: Sending to daemon: %v", m)
+	b, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
 
-	// log.Printf("eternal end: Sending to daemon: end %s %s %s %s", session, status, start, end)
-	_, err = c.Write([]byte(fmt.Sprintf("end %s %s %s %s", session, status, start, end)))
+	_, err = c.Write(b)
 	if err != nil {
 		return err
 	}
@@ -105,13 +120,19 @@ func cmdHistory(args []string) error {
 	}
 	defer c.Close()
 
-	session, err := getSession()
+	m := map[string]string{"action": "history"}
+
+	m["session"], err = getSession()
 	if err != nil {
 		return err
 	}
 
-	// log.Printf("eternal history: Sending to daemon: history")
-	_, err = c.Write([]byte(fmt.Sprintf("history %s", session)))
+	// log.Printf("eternal history: Sending to daemon: %v", m)
+	b, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	_, err = c.Write(b)
 	if err != nil {
 		return err
 	}
@@ -125,7 +146,17 @@ func cmdHistory(args []string) error {
 			return err
 		}
 		data := buf[0:nr]
-		fmt.Print(string(data))
+		var o map[string]string
+		err = json.Unmarshal(data, &o)
+		if err != nil {
+			return err
+		}
+		var duration time.Duration
+		d, err := strconv.Atoi(o["duration"])
+		if err == nil {
+			duration = 1000 * time.Duration(d)
+		}
+		fmt.Printf("%s (%s) %s %s\n", o["timestamp"], o["tty"], duration, o["command"])
 	}
 
 	return nil
