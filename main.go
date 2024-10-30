@@ -4,10 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"strconv"
-	"time"
 )
 
 func usage() error {
@@ -105,58 +102,6 @@ func cmdEnd(args []string) error {
 	_, err = c.Write(b)
 	if err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func cmdHistory(args []string) error {
-	if len(args) != 2 {
-		return usage()
-	}
-	c, err := connect()
-	if err != nil {
-		return err
-	}
-	defer c.Close()
-
-	m := map[string]string{"action": "history"}
-
-	m["session"], err = getSession()
-	if err != nil {
-		return err
-	}
-
-	// log.Printf("eternal history: Sending to daemon: %v", m)
-	b, err := json.Marshal(m)
-	if err != nil {
-		return err
-	}
-	_, err = c.Write(b)
-	if err != nil {
-		return err
-	}
-	for {
-		buf := make([]byte, 1024)
-		nr, err := c.Read(buf)
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		data := buf[0:nr]
-		var o map[string]string
-		err = json.Unmarshal(data, &o)
-		if err != nil {
-			return err
-		}
-		var duration time.Duration
-		d, err := strconv.Atoi(o["duration"])
-		if err == nil {
-			duration = 1000 * time.Duration(d)
-		}
-		fmt.Printf("%s (%s) %s %s\n", o["timestamp"], o["tty"], duration, o["command"])
 	}
 
 	return nil

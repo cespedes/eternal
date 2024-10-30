@@ -147,7 +147,9 @@ func daemonBackend(db *sql.DB, cc chan Command) {
 			m["session"] = uuid.NewString()
 			err = sqliteInit(db, m)
 			if err != nil {
-				return
+				log.Printf("Error in \"init\": %v\n", err)
+				close(cmd.Output)
+				continue
 			}
 			cmd.Output <- map[string]string{"session": m["session"]}
 			close(cmd.Output)
@@ -156,8 +158,9 @@ func daemonBackend(db *sql.DB, cc chan Command) {
 			m := cmd.Input
 			_, err := sqliteStartCommand(db, m)
 			if err != nil {
-				log.Printf("Error: %v\n", err)
-				return
+				log.Printf("Error in \"start\": %v\n", err)
+				close(cmd.Output)
+				continue
 			}
 			close(cmd.Output)
 		case "end":
@@ -165,16 +168,18 @@ func daemonBackend(db *sql.DB, cc chan Command) {
 			m := cmd.Input
 			err = sqliteEndCommand(db, m)
 			if err != nil {
-				log.Printf("Error: %v\n", err)
-				return
+				log.Printf("Error in \"end\": %v\n", err)
+				close(cmd.Output)
+				continue
 			}
 			close(cmd.Output)
 		case "history":
 			m := cmd.Input
 			history, err := sqliteHistory(db, m["session"])
 			if err != nil {
-				log.Printf("Error: %v\n", err)
-				return
+				log.Printf("Error in \"history\": %v\n", err)
+				close(cmd.Output)
+				continue
 			}
 
 			for _, e := range history {
@@ -264,7 +269,7 @@ func sqliteHistory(db *sql.DB, session string) ([]Entry, error) {
 			s.os, s.shell, s.parent, s.origin,
 			s.hostname, s.username, s.tty, s.pid,
 			c.working_dir, datetime(c.start) AS start, c.command,
-			COALESCE(c.exit,'0') AS status, COALESCE(c.duration,'0') AS duration
+			COALESCE(c.exit,'-1') AS status, COALESCE(c.duration,'-1') AS duration
 		FROM eternal_command c
 		LEFT JOIN eternal_session s ON c.session_id=s.id
 		ORDER BY c.id
