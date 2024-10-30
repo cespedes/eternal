@@ -15,14 +15,20 @@ func showDuration(d int) string {
 	if d < 1000 {
 		return fmt.Sprintf("%dµs", d)
 	}
+	if d < 10_000 {
+		return fmt.Sprintf("%d.%dms", d/1000, (d%1000)/100)
+	}
 	d /= 1000
 	if d < 1000 {
 		return fmt.Sprintf("%dms", d)
 	}
-	d /= 1000
-	if d < 60 {
-		return fmt.Sprintf("%ds", d)
+	if d < 10_000 {
+		return fmt.Sprintf("%d.%02ds", d/1000, (d%1000)/10)
 	}
+	if d < 60_000 {
+		return fmt.Sprintf("%d.%ds", d/1000, (d%1000)/100)
+	}
+	d /= 1000
 	if d < 600 {
 		return fmt.Sprintf("%dm%ds", d/60, d%60)
 	}
@@ -30,7 +36,18 @@ func showDuration(d int) string {
 	if d < 60 {
 		return fmt.Sprintf("%dm", d)
 	}
-	return strconv.Itoa(d)
+	if d < 600 {
+		return fmt.Sprintf("%dh%dm", d/60, d%60)
+	}
+	d /= 60
+	if d < 24 {
+		return fmt.Sprintf("%dh", d)
+	}
+	if d < 240 {
+		return fmt.Sprintf("%dd%dh", d/24, d%24)
+	}
+	d /= 24
+	return fmt.Sprintf("%dd", d)
 }
 
 func cmdHistory(args []string) error {
