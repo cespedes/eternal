@@ -94,27 +94,17 @@ func cmdInit(args []string) error {
 	m["os"] = runtime.GOOS + "/" + runtime.GOARCH
 	m["origin"], _, _ = strings.Cut(os.Getenv("SSH_CLIENT"), " ")
 
-	b, err := json.Marshal(m)
+	enc := json.NewEncoder(c)
+	err = enc.Encode(m)
 	if err != nil {
 		return err
 	}
 
-	_, err = c.Write(b)
-	if err != nil {
-		return err
-	}
-
-	buf := make([]byte, 1024)
-	nr, err := c.Read(buf)
-	if err != nil {
-		return err
-	}
-	data := buf[0:nr]
-
+	dec := json.NewDecoder(c)
 	var session struct {
 		Session string `json:"session"`
 	}
-	err = json.Unmarshal(data, &session)
+	err = dec.Decode(&session)
 	if err != nil {
 		return err
 	}

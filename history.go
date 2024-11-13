@@ -67,27 +67,18 @@ func cmdHistory(args []string) error {
 		return err
 	}
 
-	// log.Printf("eternal history: Sending to daemon: %v", m)
-	b, err := json.Marshal(m)
+	enc := json.NewEncoder(c)
+	err = enc.Encode(m)
 	if err != nil {
 		return err
 	}
-	_, err = c.Write(b)
-	if err != nil {
-		return err
-	}
+	dec := json.NewDecoder(c)
 	for {
-		buf := make([]byte, 1024)
-		nr, err := c.Read(buf)
+		var o map[string]string
+		err = dec.Decode(&o)
 		if err == io.EOF {
 			return nil
 		}
-		if err != nil {
-			return err
-		}
-		data := buf[0:nr]
-		var o map[string]string
-		err = json.Unmarshal(data, &o)
 		if err != nil {
 			return err
 		}

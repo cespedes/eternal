@@ -40,5 +40,5 @@ func socketName() string {
 }
 
 func connect() (net.Conn, error) {
-	return net.Dial("unixpacket", socketName())
+	return net.Dial("unix", socketName())
 }

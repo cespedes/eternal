@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 )
 
@@ -12,6 +13,7 @@ func usage() error {
 }
 
 func main() {
+	log.Printf("DEBUG: %v\n", os.Args)
 	err := run(os.Args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -61,12 +63,8 @@ func cmdStart(args []string) error {
 	}
 	m["command"] = args[2]
 	// log.Printf("eternal start: Sending to daemon: %v", m)
-	b, err := json.Marshal(m)
-	if err != nil {
-		return err
-	}
-
-	_, err = c.Write(b)
+	enc := json.NewEncoder(c)
+	err = enc.Encode(m)
 	if err != nil {
 		return err
 	}
@@ -93,16 +91,13 @@ func cmdEnd(args []string) error {
 	m["status"] = args[2]
 	m["start"] = args[3]
 	m["end"] = args[4]
-	// log.Printf("eternal end: Sending to daemon: %v", m)
-	b, err := json.Marshal(m)
+	log.Printf("eternal end: Sending to daemon: %v", m)
+	enc := json.NewEncoder(c)
+	err = enc.Encode(m)
 	if err != nil {
 		return err
 	}
-
-	_, err = c.Write(b)
-	if err != nil {
-		return err
-	}
+	log.Println("sent.")
 
 	return nil
 }

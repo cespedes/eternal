@@ -67,7 +67,7 @@ func cmdDaemon(args []string) error {
 	}
 	log.Println("Starting daemon")
 	os.Remove(socketName())
-	ln, err := net.Listen("unixpacket", socketName())
+	ln, err := net.Listen("unix", socketName())
 	if err != nil {
 		return err
 	}
@@ -109,27 +109,21 @@ func cmdDaemon(args []string) error {
 		}
 		go func(c net.Conn) {
 			defer c.Close()
-			buf := make([]byte, 1024)
-			nr, err := c.Read(buf)
-			if err != nil {
-				return
-			}
-			data := buf[0:nr]
-			// log.Printf("Got: %q", data)
+			dec := json.NewDecoder(c)
+			enc := json.NewEncoder(c)
 
 			var cmd Command
-			err = json.Unmarshal(data, &cmd.Input)
+			err = dec.Decode(&cmd.Input)
 			if err != nil {
 				return
 			}
 			cmd.Output = make(chan map[string]string, 1)
 			cc <- cmd
 			for response := range cmd.Output {
-				b, err := json.Marshal(response)
+				err = enc.Encode(response)
 				if err != nil {
 					return
 				}
-				c.Write(b)
 			}
 		}(c)
 	}
