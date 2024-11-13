@@ -15,10 +15,8 @@ __eternal_preexec() {
 __eternal_precmd() {
 	local EXIT=$? __eternal_end_time=${EPOCHREALTIME-}
 
-	[[ ! $__eternal_start_time ]] && return
-
 	eternal end "${EXIT}" "${__eternal_start_time}" "${__eternal_end_time}"
-	unset __eternal_history_id __eternal_start_time
+	unset __eternal_start_time
 }
 
 precmd_functions+=(__eternal_precmd)

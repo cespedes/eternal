@@ -48,12 +48,12 @@ type Entry struct {
 	Timestamp  string
 	Command    string
 	ExitStatus int
-	Duration   int // milliseconds
+	Duration   int // microseconds
 }
 
 type Command struct {
-	Input  map[string]string
-	Output chan map[string]string
+	Input  map[string]any
+	Output chan map[string]any
 }
 
 func (c Command) String() string {
@@ -117,7 +117,7 @@ func cmdDaemon(args []string) error {
 			if err != nil {
 				return
 			}
-			cmd.Output = make(chan map[string]string, 1)
+			cmd.Output = make(chan map[string]any, 1)
 			cc <- cmd
 			for response := range cmd.Output {
 				err = enc.Encode(response)
@@ -145,7 +145,7 @@ func daemonBackend(db *sql.DB, cc chan Command) {
 				close(cmd.Output)
 				continue
 			}
-			cmd.Output <- map[string]string{"session": m["session"]}
+			cmd.Output <- map[string]any{"session": m["session"]}
 			close(cmd.Output)
 		case "start":
 			// Expected: start session working_dir command
@@ -169,7 +169,8 @@ func daemonBackend(db *sql.DB, cc chan Command) {
 			close(cmd.Output)
 		case "history":
 			m := cmd.Input
-			history, err := sqliteHistory(db, m["session"])
+			session, _ := m["session"].(string)
+			history, err := sqliteHistory(db, session)
 			if err != nil {
 				log.Printf("Error in \"history\": %v\n", err)
 				close(cmd.Output)
@@ -177,7 +178,7 @@ func daemonBackend(db *sql.DB, cc chan Command) {
 			}
 
 			for _, e := range history {
-				cmd.Output <- map[string]string{
+				cmd.Output <- map[string]any{
 					"os":          e.OS,
 					"shell":       e.Shell,
 					"parent":      e.Parent,
@@ -189,8 +190,8 @@ func daemonBackend(db *sql.DB, cc chan Command) {
 					"working_dir": e.WorkingDir,
 					"timestamp":   e.Timestamp,
 					"command":     e.Command,
-					"exit_status": strconv.Itoa(e.ExitStatus),
-					"duration":    strconv.Itoa(e.Duration),
+					"exit_status": e.ExitStatus,
+					"duration":    e.Duration,
 				}
 			}
 			close(cmd.Output)
@@ -202,8 +203,8 @@ func daemonBackend(db *sql.DB, cc chan Command) {
 
 // CREATE TABLE IF NOT EXISTS eternal_session(id INTEGER primary key, created timestamp not null default (datetime('now','localtime')), session text unique not null, os text not null default '', shell text not null default '', parent string not null default '', origin text not null default '', hostname text not null, username text not null, tty text not null, pid int not null);
 
-func sqliteInit(db *sql.DB, m map[string]string) error {
-	log.Printf("sqliteInit(%v)", m)
+func sqliteInit(db *sql.DB, m map[string]any) error {
+	// log.Printf("sqliteInit(%v)", m)
 	_, err := db.Exec(`
 		INSERT INTO eternal_session(session, os, shell, parent, origin,
 			hostname, username, tty, pid)
@@ -216,14 +217,18 @@ func sqliteInit(db *sql.DB, m map[string]string) error {
 	return nil
 }
 
-func sqliteStartCommand(db *sql.DB, m map[string]string) (int, error) {
-	log.Printf("sqliteStartCommand(%v)", m)
+func sqliteStartCommand(db *sql.DB, m map[string]any) (int, error) {
+	// log.Printf("sqliteStartCommand(%v)", m)
+	var dur int
+	if start, ok := m["start"].(float64); ok {
+		dur = int(-start)
+	}
 	var id int
 	row := db.QueryRow(`
-		INSERT INTO eternal_command(session_id, working_dir, command)
-		SELECT id, ?, ? FROM eternal_session WHERE session=?
+		INSERT INTO eternal_command(session_id, working_dir, command, duration)
+		SELECT id, ?, ?, ? FROM eternal_session WHERE session=?
 		RETURNING id
-	`, m["working_dir"], m["command"], m["session"])
+	`, m["working_dir"], m["command"], dur, m["session"])
 	err := row.Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("INSERTING command: %w", err)
@@ -231,20 +236,25 @@ func sqliteStartCommand(db *sql.DB, m map[string]string) (int, error) {
 	return id, nil
 }
 
-func sqliteEndCommand(db *sql.DB, m map[string]string) error {
-	log.Printf("sqliteEndCommand(%v)", m)
-	t1, err := strconv.ParseFloat(m["start"], 64)
-	if err != nil {
-		return err
+func sqliteEndCommand(db *sql.DB, m map[string]any) error {
+	// log.Printf("sqliteEndCommand(%v)", m)
+	end, ok := m["end"].(float64)
+	if !ok {
+		return fmt.Errorf("sqliteEndCommand: received invalid `end`: %v", m["end"])
 	}
-	t2, err := strconv.ParseFloat(m["end"], 64)
-	if err != nil {
-		return err
+	start, ok := m["start"].(float64)
+	var duration int
+	var durLiteral string
+	if ok {
+		duration = int(end - start)
+		durLiteral = "?"
+	} else {
+		duration = int(end)
+		durLiteral = "duration+?"
 	}
-	duration := uint((t2 - t1) * 1_000_000)
-	_, err = db.Exec(`
+	_, err := db.Exec(`
 		UPDATE eternal_command
-		SET exit=?, duration=?
+		SET exit=?, duration=`+durLiteral+`
 		WHERE exit IS NULL AND id=(SELECT MAX(id) FROM eternal_command WHERE session_id=(SELECT id FROM eternal_session WHERE session=?))
 	`, m["status"], duration, m["session"])
 	if err != nil {

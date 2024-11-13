@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
+	"strconv"
+	"time"
 )
 
 func usage() error {
@@ -13,7 +14,6 @@ func usage() error {
 }
 
 func main() {
-	log.Printf("DEBUG: %v\n", os.Args)
 	err := run(os.Args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -51,7 +51,7 @@ func cmdStart(args []string) error {
 	}
 	defer c.Close()
 
-	m := map[string]string{"action": "start"}
+	m := map[string]any{"action": "start"}
 
 	m["session"], err = getSession()
 	if err != nil {
@@ -62,6 +62,7 @@ func cmdStart(args []string) error {
 		m["working_dir"] = "(error)"
 	}
 	m["command"] = args[2]
+	m["start"] = time.Now().UnixMicro()
 	// log.Printf("eternal start: Sending to daemon: %v", m)
 	enc := json.NewEncoder(c)
 	err = enc.Encode(m)
@@ -82,22 +83,28 @@ func cmdEnd(args []string) error {
 	}
 	defer c.Close()
 
-	m := map[string]string{"action": "end"}
+	m := map[string]any{"action": "end"}
 
 	m["session"], err = getSession()
 	if err != nil {
 		return err
 	}
 	m["status"] = args[2]
-	m["start"] = args[3]
-	m["end"] = args[4]
-	log.Printf("eternal end: Sending to daemon: %v", m)
+	if f, err := strconv.ParseFloat(args[3], 64); err == nil {
+		m["start"] = int(f * 1_000_000)
+	}
+	if f, err := strconv.ParseFloat(args[4], 64); err == nil {
+		m["end"] = int(f * 1_000_000)
+	}
+	if m["end"] == nil {
+		m["end"] = time.Now().UnixMicro()
+	}
+	// log.Printf("eternal end: Sending to daemon: %v", m)
 	enc := json.NewEncoder(c)
 	err = enc.Encode(m)
 	if err != nil {
 		return err
 	}
-	log.Println("sent.")
 
 	return nil
 }

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 )
 
@@ -74,7 +73,7 @@ func cmdHistory(args []string) error {
 	}
 	dec := json.NewDecoder(c)
 	for {
-		var o map[string]string
+		var o map[string]any
 		err = dec.Decode(&o)
 		if err == io.EOF {
 			return nil
@@ -82,11 +81,13 @@ func cmdHistory(args []string) error {
 		if err != nil {
 			return err
 		}
-		d, err := strconv.Atoi(o["duration"])
-		if err != nil {
+		d, ok := o["duration"].(float64)
+		if !ok {
 			d = -1
 		}
-		fmt.Printf("%s (%-6s) %5s %s\n", o["timestamp"], strings.TrimPrefix(o["tty"], "/dev/"), showDuration(d), o["command"])
+		tty, _ := o["tty"].(string)
+		tty = strings.TrimPrefix(tty, "/dev/")
+		fmt.Printf("%s %-6s %5s %s\n", o["timestamp"], tty, showDuration(int(d)), o["command"])
 	}
 
 	return nil
