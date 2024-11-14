@@ -4,8 +4,7 @@
 # which can be enabled for bash using https://github.com/rcaloras/bash-preexec
 #
 
-ETERNAL_SESSION=$( eternal init )
-export ETERNAL_SESSION
+export ETERNAL_SESSION=$( eternal init )
 
 __eternal_preexec() {
 	eternal start "$1"
