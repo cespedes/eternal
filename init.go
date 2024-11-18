@@ -89,7 +89,9 @@ func cmdInit(args []string) error {
 	}
 	m["shell"] = proc.Executable()
 	proc, err = ps.FindProcess(proc.PPid())
-	m["parent"] = proc.Executable()
+	if err == nil {
+		m["parent"] = proc.Executable()
+	}
 
 	m["os"] = runtime.GOOS + "/" + runtime.GOARCH
 	m["origin"], _, _ = strings.Cut(os.Getenv("SSH_CLIENT"), " ")

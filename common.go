@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net"
 	"os"
 	"os/user"
@@ -27,7 +28,6 @@ func socketName() string {
 	if err == nil {
 		username = user.Username
 	}
-	username = user.Username
 	if username != "" {
 		filename = username + "-" + filename
 	}
@@ -41,4 +41,12 @@ func socketName() string {
 
 func connect() (net.Conn, error) {
 	return net.Dial("unix", socketName())
+}
+
+func getSession() (string, error) {
+	session := os.Getenv("ETERNAL_SESSION")
+	if session == "" {
+		return "", errors.New("no ETERNAL_SESSION in environment")
+	}
+	return session, nil
 }
