@@ -8,9 +8,11 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"syscall"
 
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
@@ -72,6 +74,9 @@ func cmdDaemon(args []string) error {
 		return err
 	}
 	defer ln.Close()
+
+	// Without this, "eternal daemon" may terminate if its parent dies:
+	signal.Ignore(syscall.SIGHUP)
 
 	var dbdir, dbfile string
 	switch runtime.GOOS {
